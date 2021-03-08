@@ -26,6 +26,11 @@ dependencies:
 
 
   cupertino_icons: ^1.0.0
+  font_awesome_flutter: ^8.11.0
+  url_launcher: ^5.7.10
+  # 설정 변수
+  shared_preferences: ^0.5.12+4
+  ndialog: ^3.3.2
 
 dev_dependencies:
   flutter_test:
