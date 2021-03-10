@@ -395,7 +395,7 @@ class _PlayGameWithAiPageState extends State<PlayGameWithAiPage> {
                       (route) => false,);
                 Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (BuildContext context) => PlayGameWithAiPage())
+                    MaterialPageRoute(builder: (BuildContext context) => ConfigKeyAi())
                 );
               },
             ),
