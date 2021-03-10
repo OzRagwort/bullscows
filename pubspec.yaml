@@ -30,11 +30,15 @@ dependencies:
   url_launcher: ^5.7.10
   # 설정 변수
   shared_preferences: ^0.5.12+4
+  # custom dialog
   ndialog: ^3.3.2
+  # admob
+  google_mobile_ads: ^0.11.0+2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.8.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -51,6 +55,8 @@ flutter:
   # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/background.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.
