@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:bullscows/AdMobManager.dart';
 import 'package:bullscows/MainPage.dart';
+import 'package:bullscows/setting/CustomPageRoute.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -15,23 +16,27 @@ class ChatMessage{
   ChatMessage({@required this.messageContent, @required this.messageType});
 }
 
-class PlayGamePage extends StatefulWidget {
+class PlayGameWithAiPage extends StatefulWidget {
+  PlayGameWithAiPage({this.checkKeyMap});
+
+  String checkKeyMap;
+
   @override
-  _PlayGamePageState createState() => _PlayGamePageState();
+  _PlayGameWithAiPageState createState() => _PlayGameWithAiPageState();
 }
 
-class _PlayGamePageState extends State<PlayGamePage> {
+class _PlayGameWithAiPageState extends State<PlayGameWithAiPage> {
 
   List<ChatMessage> messages = [
-    ChatMessage(messageContent: "숫자를 맞춰보세요!", messageType: "receiver"),
+    ChatMessage(messageContent: "숫자를 맞춰보세요!", messageType: "receiverCheck"),
   ];
 
   ScrollController _controller = ScrollController();
 
+  AdMobManager _adMobManager = new AdMobManager();
+
   Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
   SharedPreferences prefs;
-
-  AdMobManager _adMobManager = new AdMobManager();
 
   var rd = Random();
 
@@ -41,15 +46,37 @@ class _PlayGamePageState extends State<PlayGamePage> {
   int messageCount = 0;
   int clearCount;
   int numCount;
+  int gameDiff;
+  String gameDiffString;
   int hint;
   bool viewRecord = false;
+
+  int diffCount = 0;
 
   Color color = Color(0xff1890ff);
   double textSize = 40;
 
+  /// 알고리즘 관련
+  String checkKeyMap = "";
+  String checkMap = "";
+  List<int> checkKeyList = new List<int>();
+  int startNum;
+  int endNum;
+
   void _setKeyMap() {
     _prefs.then((value) {setState(() {
-      numCount = value.getInt(('num_count'));
+      prefs = value;
+      gameDiff = value.getInt('game_diff');
+      numCount = value.getInt('num_count');
+
+      if (gameDiff == 1)
+        gameDiffString = "쉬움";
+      else if (gameDiff == 2)
+        gameDiffString = "보통";
+      else if (gameDiff == 3)
+        gameDiffString = "어려움";
+      else
+        gameDiffString = "";
 
       for (int i = 0 ; i < numCount ; i++) {
         while(true) {
@@ -65,26 +92,59 @@ class _PlayGamePageState extends State<PlayGamePage> {
           }
         }
       }
+
+      if (numCount == 3) {
+        startNum = 123;
+        endNum = 987;
+      } else if (numCount == 4) {
+        startNum = 1234;
+        endNum = 9876;
+      } else {
+        startNum = 12345;
+        endNum = 98765;
+      }
+      for(int i = startNum ; i <= endNum ; i++) {
+        String s = i.toString();
+        for (int t = 0 ; t < numCount - 1 ; t++) {
+          if (s.contains(s[t], t + 1)) {
+            break;
+          } else if (t == numCount - 2) {
+            checkKeyList.add(i);
+          }
+        }
+      }
+
+      _setDiffCount();
     });});
+  }
+
+  void _setDiffCount() {
+    if (gameDiff == 1)
+      diffCount = numCount * 2;
+    else if (gameDiff == 2)
+      diffCount = numCount;
+    else if (gameDiff == 3)
+      diffCount = 0;
   }
 
   @override
   void initState() {
     super.initState();
-    _setKeyMap();
     _adMobManager.init();
+    _setKeyMap();
+    checkKeyMap = widget.checkKeyMap;
   }
 
   @override
   void dispose() {
-    _adMobManager.dispose();
     super.dispose();
+    _adMobManager.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     double width = MediaQuery.of(context).size.width;
-    if (numCount != null) {
+    if (numCount != null && gameDiff != null) {
       return WillPopScope(
         onWillPop: () {
           NAlertDialog(
@@ -93,9 +153,7 @@ class _PlayGamePageState extends State<PlayGamePage> {
             actions: <Widget>[
               FlatButton(
                 child: Text("계속하기", style: TextStyle(fontSize: 16),),
-                onPressed: () {
-                  Navigator.pop(context);
-                  },
+                onPressed: () => Navigator.pop(context),
               ),
               FlatButton(
                 child: Text("다시하기", style: TextStyle(fontSize: 16),),
@@ -108,7 +166,7 @@ class _PlayGamePageState extends State<PlayGamePage> {
                         (route) => false,);
                   Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (BuildContext context) => PlayGamePage())
+                      CustomPageRoute(ConfigKeyAi())
                   );
                 },
               ),
@@ -121,7 +179,7 @@ class _PlayGamePageState extends State<PlayGamePage> {
                   context,
                   MaterialPageRoute(builder: (BuildContext context) => MainPage()),
                       (route) => false,);
-                },
+                  },
                 color: Colors.orange,
               ),
             ],
@@ -136,41 +194,22 @@ class _PlayGamePageState extends State<PlayGamePage> {
                 leading: Container(),
                 leadingWidth: 0,
                 actions: [
+                  /// 난이도
+                  Expanded(
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(gameDiffString, style: TextStyle(fontSize: 20, color: Colors.black, fontWeight: FontWeight.bold),),
+                    ),
+                  ),
+
                   /// 기록만보기
                   FlatButton(
                     onPressed: () {setState(() {
                       viewRecord = viewRecord ^ true;
+                      Future.delayed(Duration(milliseconds: 500)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
                     });},
                     child: Text('기록만 보기', style: TextStyle(fontSize: 18),),
-                  ),
-
-                  /// 힌트보기
-                  FlatButton(
-                    onPressed: () {
-                      _adMobManager.show();
-                      NAlertDialog(
-                        title: hint == null ? Text("알고싶은 숫자를 클릭하세요") : Text("거의 다 왔어요!"),
-                        content: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            numCount >= 1 ? ButtonTheme(minWidth: 20, child: FlatButton(onPressed: hint == null ? () {setState(() {hint = 0; messages.add(new ChatMessage(messageContent: "첫 번째 숫자는 " + keyMap[0] + '입니다!', messageType: 'receiver')); Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent)); Navigator.pop(context);});} : () {}, child: Text(hint == 0?keyMap[0]:"*", style: TextStyle(fontSize: textSize),),)) : Text(''),
-                            numCount >= 2 ? ButtonTheme(minWidth: 20, child: FlatButton(onPressed: hint == null ? () {setState(() {hint = 1; messages.add(new ChatMessage(messageContent: "두 번째 숫자는 " + keyMap[1] + '입니다!', messageType: 'receiver')); Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent)); Navigator.pop(context);});} : () {}, child: Text(hint == 1?keyMap[1]:"*", style: TextStyle(fontSize: textSize),),)) : Text(''),
-                            numCount >= 3 ? ButtonTheme(minWidth: 20, child: FlatButton(onPressed: hint == null ? () {setState(() {hint = 2; messages.add(new ChatMessage(messageContent: "세 번째 숫자는 " + keyMap[2] + '입니다!', messageType: 'receiver')); Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent)); Navigator.pop(context);});} : () {}, child: Text(hint == 2?keyMap[2]:"*", style: TextStyle(fontSize: textSize),),)) : Text(''),
-                            numCount >= 4 ? ButtonTheme(minWidth: 20, child: FlatButton(onPressed: hint == null ? () {setState(() {hint = 3; messages.add(new ChatMessage(messageContent: "네 번째 숫자는 " + keyMap[3] + '입니다!', messageType: 'receiver')); Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent)); Navigator.pop(context);});} : () {}, child: Text(hint == 3?keyMap[3]:"*", style: TextStyle(fontSize: textSize),),)) : Text(''),
-                            numCount >= 5 ? ButtonTheme(minWidth: 20, child: FlatButton(onPressed: hint == null ? () {setState(() {hint = 4; messages.add(new ChatMessage(messageContent: "다섯 번째 숫자는 " + keyMap[4] + '입니다!', messageType: 'receiver')); Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent)); Navigator.pop(context);});} : () {}, child: Text(hint == 4?keyMap[4]:"*", style: TextStyle(fontSize: textSize),),)) : Text(''),
-                          ],
-                        ),
-                        blur: 4,
-                        actions: <Widget>[
-                          FlatButton(
-                            child: Text("계속하기", style: TextStyle(fontSize: 16),),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ).show(context, transitionType: DialogTransitionType.Bubble);
-                    },
-                    child: Text('힌트 보기', style: TextStyle(fontSize: 18),),
                   ),
 
                   /// 포기하기
@@ -195,7 +234,7 @@ class _PlayGamePageState extends State<PlayGamePage> {
                                     (route) => false,);
                               Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (BuildContext context) => PlayGamePage())
+                                  MaterialPageRoute(builder: (BuildContext context) => ConfigKeyAi())
                               );
                             },
                           ),
@@ -205,10 +244,9 @@ class _PlayGamePageState extends State<PlayGamePage> {
                               if (rd.nextInt(4) == 0)
                                 _adMobManager.show();
                               Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (BuildContext context) => MainPage()),
-                                    (route) => false,
-                              );
+                              context,
+                              MaterialPageRoute(builder: (BuildContext context) => MainPage()),
+                                  (route) => false,);
                             },
                             color: Colors.orange,
                           ),
@@ -232,14 +270,14 @@ class _PlayGamePageState extends State<PlayGamePage> {
                           return AnimatedContainer(
                             duration: Duration(milliseconds: 500),
                             curve: Curves.easeOutQuart,
-                            height: viewRecord == true && messages[index].messageType == 'sender' ? 0 : 72,
+                            height: viewRecord == true && messages[index].messageType != 'receiver' ? 0 : 72,
                             padding: EdgeInsets.only(left: 14,right: 14,top: 5,bottom: 5),
                             child: Align(
-                              alignment: (messages[index].messageType == "receiver" ? Alignment.topLeft : Alignment.topRight),
+                              alignment: (messages[index].messageType == "sender" ? Alignment.topRight : Alignment.topLeft),
                               child: Container(
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
-                                  color: (messages[index].messageType  == "receiver" ? Colors.yellowAccent[200] : Colors.orange[200]),
+                                  color: (messages[index].messageType  == "sender" ? Colors.orange[200] : Colors.yellowAccent[200]),
                                 ),
                                 padding: EdgeInsets.all(16),
                                 child: Text(messages[index].messageContent, style: TextStyle(fontSize: 20),),
@@ -332,17 +370,17 @@ class _PlayGamePageState extends State<PlayGamePage> {
         messages.add(new ChatMessage(messageContent: senders + " -> OUT!!!", messageType: "receiver"));
       });
       Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
+      _algorithmTurn();
     }
     else if(strike == numCount) {
       setState(() {
-        if (clearCount == null) {
+        if (clearCount == null)
           clearCount = messageCount;
-        }
         messages.add(new ChatMessage(messageContent: senders, messageType: "sender"));
         messages.add(new ChatMessage(messageContent: "CLEAR!!!", messageType: "receiver"));
         Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
         NAlertDialog(
-          title: Text("정답입니다!", style: TextStyle(fontSize: 30),),
+          title: Text("정답! 이겼습니다!", style: TextStyle(fontSize: 30),),
           content: Text("시도 횟수 : $clearCount 번", style: TextStyle(fontSize: 20),),
           blur: 4,
           actions: <Widget>[
@@ -357,7 +395,7 @@ class _PlayGamePageState extends State<PlayGamePage> {
                       (route) => false,);
                 Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (BuildContext context) => PlayGamePage())
+                    MaterialPageRoute(builder: (BuildContext context) => PlayGameWithAiPage())
                 );
               },
             ),
@@ -367,9 +405,9 @@ class _PlayGamePageState extends State<PlayGamePage> {
                 if (rd.nextInt(4) == 0)
                   _adMobManager.show();
                 Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (BuildContext context) => MainPage()),
-                      (route) => false,);
+                context,
+                MaterialPageRoute(builder: (BuildContext context) => MainPage()),
+                    (route) => false,);
               },
             ),
           ],
@@ -382,7 +420,118 @@ class _PlayGamePageState extends State<PlayGamePage> {
         messages.add(new ChatMessage(messageContent: senders + " -> S : " + strike.toString() + " / B : " + ball.toString(), messageType: "receiver"));
         Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
       });
+      _algorithmTurn();
     }
+  }
+
+  void _algorithmTurn() {
+    int strike = 0;
+    int ball = 0;
+    checkMap = "";
+
+    checkMap = _createValue();
+
+    Map<String, int> results = _check(checkKeyMap, checkMap);
+    strike = results['strike'];
+    ball = results['ball'];
+
+    if (strike != numCount) {
+      if (diffCount == 0) {
+        _findKey(results);
+      } else {
+        diffCount--;
+      }
+    }
+
+    if(strike == 0 && ball == 0) {
+      setState(() {
+        messages.add(new ChatMessage(messageContent: checkMap, messageType: "receiverCheck"));
+        messages.add(new ChatMessage(messageContent: checkMap + " -> OUT!!!", messageType: "sender"));
+      });
+      Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
+    }
+    else if(strike == numCount) {
+      setState(() {
+        messages.add(new ChatMessage(messageContent: checkMap, messageType: "receiverCheck"));
+        messages.add(new ChatMessage(messageContent: "CLEAR!!!", messageType: "sender"));
+        Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
+        NAlertDialog(
+          title: Text("인공지능 승리!", style: TextStyle(fontSize: 30),),
+          blur: 4,
+          actions: <Widget>[
+            FlatButton(
+              child: Text("다시하기", style: TextStyle(fontSize: 16),),
+              onPressed: () {
+                if (rd.nextInt(4) == 0)
+                  _adMobManager.show();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (BuildContext context) => MainPage()),
+                      (route) => false,);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (BuildContext context) => ConfigKeyAi())
+                );
+              },
+            ),
+            FlatButton(
+              child: Text("메뉴로", style: TextStyle(fontSize: 16),),
+              onPressed: () {
+                if (rd.nextInt(4) == 0)
+                  _adMobManager.show();
+                Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (BuildContext context) => MainPage()),
+                    (route) => false,);
+              },
+            ),
+          ],
+        ).show(context, transitionType: DialogTransitionType.Bubble);
+      });
+    }
+    else {
+      setState(() {
+        messages.add(new ChatMessage(messageContent: checkMap, messageType: "receiverCheck"));
+        messages.add(new ChatMessage(messageContent: checkMap + " -> S : " + strike.toString() + " / B : " + ball.toString(), messageType: "sender"));
+        Future.delayed(Duration(milliseconds: 100)).then((value) => _controller.jumpTo(_controller.position.maxScrollExtent));
+      });
+    }
+
+  }
+
+  /// SB 체크
+  Map<String, int> _check(String key, String input) {
+    Map<String, int> ret = new Map<String, int>();
+    ret["strike"] = 0;
+    ret["ball"] = 0;
+    for (int i = 0 ; i < numCount ; i++) {
+      if (key[i] == input[i]) {
+        ret["strike"]++;
+        continue;
+      } else if (key.contains(input[i])) {
+        ret["ball"]++;
+        continue;
+      }
+    }
+    return ret;
+  }
+
+  /// 답찾기 알고리즘
+  void _findKey(Map<String, int> results) {
+    List<int> tempList = new List<int>();
+    tempList.addAll(checkKeyList);
+    for (int i in tempList) {
+      Map<String, int> checkResults = _check(checkMap, i.toString());
+      if ((checkResults["strike"] != results["strike"] || checkResults["ball"] != results["ball"]) && checkKeyList.contains(i)) {
+        checkKeyList.remove(i);
+      }
+    }
+    setState(() {});
+  }
+
+  /// 답찾기 시도할 수 생성
+  String _createValue() {
+    return checkKeyList[rd.nextInt(checkKeyList.length)].toString();
   }
 
 }
